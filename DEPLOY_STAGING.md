@@ -1,17 +1,17 @@
 Deployment options for temporary staging
 
 Quick overview
-- Render: recommended for fastest setup using the repo's Dockerfile (`backend/Dockerfile`).
+- Render: recommended for fastest setup using the repo's root Dockerfile (`Dockerfile`).
 
 
 Render steps (recommended)
 1. Push your repo to GitHub.
-2. In Render, create a new "Web Service" → connect GitHub repo → select `render.yaml` or choose Dockerfile at `backend/Dockerfile`.
+2. In Render, create a new "Web Service" → connect GitHub repo → select `render.yaml` or choose the root `Dockerfile`.
 3. Add required environment variables and secrets in the Render dashboard (e.g. `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`).
 4. Deploy — Render will build the Docker image and expose the service. Note the public URL.
 
 Automatic deploy via GitHub Actions
-1. In Render: create the service (use `render.yaml` or select `backend/Dockerfile`) and note the `Service ID` from the URL or service details.
+1. In Render: create the service (use `render.yaml` or select the root `Dockerfile`) and note the `Service ID` from the URL or service details.
 2. In GitHub → Settings → Secrets and variables → Actions add these secrets:
 	- `RENDER_API_KEY` — create from Render dashboard (Account → API Keys)
 	- `RENDER_SERVICE_ID` — the service id noted in step 1

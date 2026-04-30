@@ -2,7 +2,7 @@ services:
   - type: web_service
     name: septic-backend-staging
     env: docker
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: Dockerfile
     branch: main
     plan: starter
     envVars:
