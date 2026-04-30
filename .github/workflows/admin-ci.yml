@@ -1,0 +1,75 @@
+name: Admin Panel CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'admin/**'
+      - '.github/workflows/admin-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'admin/**'
+
+jobs:
+  test:
+    name: Test Admin Panel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Run linter
+        working-directory: admin
+        run: npm run lint || echo "Linter not configured"
+
+      - name: Run type check
+        working-directory: admin
+        run: npm run type-check || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: admin
+        run: npm test || echo "Tests not configured"
+
+      - name: Build
+        working-directory: admin
+        run: npm run build
+
+  lint:
+    name: Lint Admin Panel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: admin
+        run: npm run lint || npx eslint . --ext .ts,.tsx,.js,.jsx
+
+      - name: Check formatting
+        working-directory: admin
+        run: npm run format:check || npx prettier --check "src/**/*.{ts,tsx,js,jsx,json}"

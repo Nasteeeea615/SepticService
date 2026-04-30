@@ -1,0 +1,91 @@
+name: Mobile OTA Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/src/**'
+      - 'mobile/App.tsx'
+      - 'mobile/assets/**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Update branch'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - preview
+          - production
+      message:
+        description: 'Update message'
+        required: true
+        default: 'Bug fixes and improvements'
+        type: string
+
+jobs:
+  update:
+    name: Publish OTA Update
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 🔧 Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: 🚀 Publish OTA Update (Auto)
+        if: github.event_name == 'push'
+        working-directory: mobile
+        run: |
+          MESSAGE="Auto update: ${{ github.event.head_commit.message }}"
+          eas update --branch production --message "$MESSAGE" --non-interactive
+
+      - name: 🚀 Publish OTA Update (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: mobile
+        run: |
+          BRANCH="${{ github.event.inputs.branch }}"
+          MESSAGE="${{ github.event.inputs.message }}"
+          eas update --branch $BRANCH --message "$MESSAGE" --non-interactive
+
+      - name: 📊 Update Summary
+        if: always()
+        run: |
+          echo "### 🔄 OTA Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Users will receive the update automatically." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check update status in [EAS Dashboard](https://expo.dev/)" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    needs: update
+    if: success()
+    
+    steps:
+      - name: 📢 Send notification
+        run: |
+          echo "OTA update published successfully!"
+          # Здесь можно добавить отправку уведомлений в Slack, Discord и т.д.

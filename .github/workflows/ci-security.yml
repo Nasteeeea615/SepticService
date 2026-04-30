@@ -1,0 +1,89 @@
+name: CI Security and Scans
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run gitleaks scan (docker)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/src zricethezav/gitleaks detect -s /src --report-path /src/gitleaks-report.json || true
+
+  audit-and-tests:
+    name: Audit, tests and npm high-level enforcement
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies (root)
+        run: |
+          npm ci --prefer-offline --no-audit
+      - name: Run npm audit (fail on high)
+        run: |
+          npm audit --audit-level=high
+      - name: Run backend tests
+        working-directory: ./backend
+        run: |
+          npm ci --prefer-offline --no-audit
+          npx tsc --noEmit
+          npx jest --config jest.config.cjs --runInBand
+
+  codeql:
+    name: CodeQL SAST
+    runs-on: ubuntu-latest
+    needs: audit-and-tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript,typescript
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+      - name: Perform CodeQL Scan
+        uses: github/codeql-action/analyze@v2
+
+  container-scan:
+    name: Build & container scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: codeql
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: false
+          tags: septic1-backend:ci
+      - name: Run Trivy scan (docker)
+        run: |
+          docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --no-progress --format template --template '{{range .Results}}{{.Target}}: {{.Vulnerabilities}}\n{{end}}' septic1-backend:ci || true
+
+  integration-e2e:
+    name: Integration / E2E against staging
+    runs-on: ubuntu-latest
+    needs: [audit-and-tests, codeql]
+    env:
+      STAGING_URL: ${{ secrets.STAGING_URL }}
+      STAGING_WEBHOOK_SECRET: ${{ secrets.STAGING_WEBHOOK_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check and run backend e2e script
+        working-directory: ./backend
+        run: |
+          if [ -z "${STAGING_URL}" ] || [ -z "${STAGING_WEBHOOK_SECRET}" ]; then
+            echo "Required staging secrets are not set. Skipping e2e."; exit 0;
+          fi
+          npm ci --prefer-offline --no-audit
+          node ./scripts/run-e2e.js

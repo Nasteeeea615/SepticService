@@ -1,0 +1,194 @@
+version: '3.8'
+
+# Staging окружение для тестирования перед production
+# Использование: docker-compose -f docker-compose.staging.yml up -d
+
+services:
+  # PostgreSQL Database (Staging)
+  postgres-staging:
+    image: postgres:15-alpine
+    container_name: septik-postgres-staging
+    environment:
+      POSTGRES_USER: ${STAGING_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD}
+      POSTGRES_DB: ${STAGING_DB_NAME:-septik_staging}
+    ports:
+      - "${STAGING_DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./backend/src/database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - septik-staging-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache (Staging)
+  redis-staging:
+    image: redis:alpine
+    container_name: septik-redis-staging
+    command: redis-server --requirepass ${STAGING_REDIS_PASSWORD}
+    ports:
+      - "${STAGING_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${STAGING_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - septik-staging-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend API (Staging)
+  backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: septik-backend-staging
+    environment:
+      NODE_ENV: staging
+      PORT: 3000
+      
+      # Database
+      DB_HOST: postgres-staging
+      DB_PORT: 5432
+      DB_NAME: ${STAGING_DB_NAME:-septik_staging}
+      DB_USER: ${STAGING_DB_USER:-postgres}
+      DB_PASSWORD: ${STAGING_DB_PASSWORD}
+      
+      # Redis
+      REDIS_HOST: redis-staging
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${STAGING_REDIS_PASSWORD}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      
+      # URLs
+      FRONTEND_URL: ${STAGING_FRONTEND_URL:-http://localhost:3000}
+      ADMIN_URL: ${STAGING_ADMIN_URL:-http://localhost:3001}
+      
+      # YooKassa (используем тестовый режим)
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      YOOKASSA_API_URL: ${YOOKASSA_API_URL:-https://api.yookassa.ru/v3}
+      YOOKASSA_RETURN_URL: ${YOOKASSA_RETURN_URL}
+      YOOKASSA_WEBHOOK_SECRET: ${STAGING_WEBHOOK_SECRET}
+      
+      # Firebase (опционально для staging)
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT}
+      
+      # SMS (опционально)
+      SMS_API_KEY: ${SMS_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      LOGIN_CODE_TTL_MINUTES: ${LOGIN_CODE_TTL_MINUTES:-10}
+    ports:
+      - "${STAGING_BACKEND_PORT:-3002}:3000"
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+      redis-staging:
+        condition: service_healthy
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - septik-staging-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Admin Panel (Staging)
+  admin-staging:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: septik-admin-staging
+    environment:
+      REACT_APP_API_URL: ${STAGING_API_URL:-http://localhost:3002/api}
+      REACT_APP_ENV: staging
+    ports:
+      - "${STAGING_ADMIN_PORT:-3003}:80"
+    depends_on:
+      - backend-staging
+    networks:
+      - septik-staging-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx (Staging) - опционально
+  nginx-staging:
+    image: nginx:alpine
+    container_name: septik-nginx-staging
+    ports:
+      - "${STAGING_NGINX_HTTP_PORT:-8080}:80"
+      - "${STAGING_NGINX_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./nginx/staging.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_staging_cache:/var/cache/nginx
+    depends_on:
+      - backend-staging
+      - admin-staging
+    networks:
+      - septik-staging-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_staging_data:
+    driver: local
+    labels:
+      environment: staging
+      backup: "true"
+  redis_staging_data:
+    driver: local
+    labels:
+      environment: staging
+  nginx_staging_cache:
+    driver: local
+
+networks:
+  septik-staging-network:
+    driver: bridge
+    labels:
+      environment: staging

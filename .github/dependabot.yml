@@ -1,0 +1,114 @@
+version: 2
+updates:
+  # Backend dependencies
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "your-github-username"  # Замените на ваш username
+    assignees:
+      - "your-github-username"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(backend)"
+      include: "scope"
+    # Группировка обновлений
+    groups:
+      production-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@types/*"
+          - "typescript"
+          - "jest"
+          - "ts-jest"
+      development-dependencies:
+        patterns:
+          - "@types/*"
+          - "typescript"
+          - "jest"
+          - "ts-jest"
+          - "nodemon"
+    # Автоматическое обновление patch версий
+    allow:
+      - dependency-type: "all"
+    # Игнорировать определенные пакеты
+    ignore:
+      - dependency-name: "firebase-admin"
+        update-types: ["version-update:semver-major"]
+  
+  # Admin dependencies
+  - package-ecosystem: "npm"
+    directory: "/admin"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "your-github-username"
+    labels:
+      - "dependencies"
+      - "admin"
+    commit-message:
+      prefix: "chore(admin)"
+      include: "scope"
+  
+  # Mobile dependencies
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "your-github-username"
+    labels:
+      - "dependencies"
+      - "mobile"
+    commit-message:
+      prefix: "chore(mobile)"
+      include: "scope"
+    # Игнорировать Expo SDK major updates (требуют ручного обновления)
+    ignore:
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-major"]
+  
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+  
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"

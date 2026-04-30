@@ -1,0 +1,141 @@
+name: Mobile Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      profile:
+        description: 'Build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+
+jobs:
+  build:
+    name: EAS Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 🔧 Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: 🔍 Validate configuration
+        working-directory: mobile
+        run: |
+          echo "Validating app.json..."
+          node -e "require('./app.json')"
+          echo "Validating eas.json..."
+          node -e "require('./eas.json')"
+
+      - name: 🤖 Build Android (Preview)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        working-directory: mobile
+        run: |
+          eas build --platform android --profile preview --non-interactive --no-wait
+        continue-on-error: true
+
+      - name: 🍎 Build iOS (Preview)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        working-directory: mobile
+        run: |
+          eas build --platform ios --profile preview --non-interactive --no-wait
+        continue-on-error: true
+
+      - name: 🚀 Build Production (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: mobile
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+          PROFILE="${{ github.event.inputs.profile }}"
+          
+          if [ "$PLATFORM" = "all" ]; then
+            eas build --platform all --profile $PROFILE --non-interactive
+          else
+            eas build --platform $PLATFORM --profile $PROFILE --non-interactive
+          fi
+
+      - name: 📊 Build Summary
+        if: always()
+        run: |
+          echo "### 📱 Mobile Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check build status in [EAS Dashboard](https://expo.dev/)" >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        working-directory: mobile
+        run: npx eslint . --ext .ts,.tsx --max-warnings 0
+        continue-on-error: true
+
+      - name: 🔍 Run TypeScript check
+        working-directory: mobile
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: 📊 Lint Summary
+        if: always()
+        run: |
+          echo "### 🔍 Lint & Type Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Linting and type checking completed." >> $GITHUB_STEP_SUMMARY

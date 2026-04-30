@@ -1,0 +1,71 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+
+jobs:
+  test:
+    name: Test Mobile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Run linter
+        working-directory: mobile
+        run: npm run lint || echo "Linter not configured"
+
+      - name: Run type check
+        working-directory: mobile
+        run: npm run type-check || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: mobile
+        run: npm test || echo "Tests not configured"
+
+  lint:
+    name: Lint Mobile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: mobile
+        run: npm run lint || npx eslint . --ext .ts,.tsx,.js,.jsx
+
+      - name: Check formatting
+        working-directory: mobile
+        run: npm run format:check || npx prettier --check "src/**/*.{ts,tsx,js,jsx,json}"

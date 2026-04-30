@@ -1,0 +1,32 @@
+name: EAS Native Build (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'android|ios|all'
+        required: true
+        default: 'all'
+
+jobs:
+  eas-build:
+    name: EAS build
+    runs-on: ubuntu-latest
+    env:
+      EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install EAS CLI
+        run: |
+          npm install -g eas-cli
+      - name: Login to EAS
+        run: |
+          eas login --token "$EAS_TOKEN"
+      - name: Run EAS build
+        run: |
+          eas build --platform ${{ github.event.inputs.platform }} --non-interactive
