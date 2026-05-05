@@ -1,16 +1,21 @@
-# Multi-stage build for the backend service at repository root.
-# Render can use this file directly when the service is created as a Docker app.
+# Self-contained backend image for Render.
+# The repo root is a wrapper, so we clone the backend repository during build.
 
 FROM node:18-alpine AS builder
 
-WORKDIR /app/backend
+RUN apk add --no-cache git
 
-COPY backend/package*.json ./
+ARG BACKEND_REPO=https://github.com/Nasteeeea615/backend.git
+ARG BACKEND_REF=main
+
+WORKDIR /app
+
+RUN git clone --depth 1 --branch ${BACKEND_REF} ${BACKEND_REPO} backend
+
+WORKDIR /app/backend
 
 RUN npm ci && \
   npm cache clean --force
-
-COPY backend/ ./
 
 RUN npm run build
 
@@ -23,7 +28,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app/backend
 
-COPY backend/package*.json ./
+COPY --from=builder /app/backend/package*.json ./
 
 RUN npm ci --only=production && npm cache clean --force
 
