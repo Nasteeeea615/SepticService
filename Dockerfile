@@ -6,11 +6,13 @@ FROM node:18-alpine AS builder
 RUN apk add --no-cache git
 
 ARG BACKEND_REPO=https://github.com/Nasteeeea615/backend.git
-ARG BACKEND_REF=main
+ARG BACKEND_REF=92dc9fc
 
 WORKDIR /app
 
-RUN git clone --depth 1 --branch ${BACKEND_REF} ${BACKEND_REPO} backend
+RUN git clone ${BACKEND_REPO} backend && \
+  cd backend && \
+  git checkout ${BACKEND_REF}
 
 WORKDIR /app/backend
 
