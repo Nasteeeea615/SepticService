@@ -6,7 +6,7 @@ FROM node:18-alpine AS builder
 RUN apk add --no-cache git
 
 ARG BACKEND_REPO=https://github.com/Nasteeeea615/backend.git
-ARG BACKEND_REF=ab84b27
+ARG BACKEND_REF=ebcaddc
 
 WORKDIR /app
 
