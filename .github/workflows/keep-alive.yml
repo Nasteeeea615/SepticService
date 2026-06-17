@@ -1,0 +1,17 @@
+name: Keep backend awake
+
+# Render free instances sleep after ~15 min of inactivity, making the first
+# request (e.g. login) slow. This pings /health every 10 min to keep it warm.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS --max-time 90 https://septicservice.onrender.com/health || true
